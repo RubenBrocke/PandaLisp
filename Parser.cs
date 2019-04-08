@@ -113,10 +113,10 @@ namespace PandaLisp
         private Primary CreatePrimary()
         {
             TokenType type = PeekToken().TokenType;
-            if (type == TokenType.TRUE) { return new Boolean(NextToken().Value); }
-            if (type == TokenType.FALSE) { return new Boolean(NextToken().Value); }
+            if (type == TokenType.TRUE) { return new Boolean(true); }
+            if (type == TokenType.FALSE) { return new Boolean(false); }
 
-            if (type == TokenType.NUMBER) { return new Number(NextToken().Value); }
+            if (type == TokenType.NUMBER) { return new Number(Convert.ToInt32(NextToken().Value)); }
             if (type == TokenType.STRING) { return new String(NextToken().Value); }
             if (type == TokenType.LEFT_PAREN) { return CreateLisp(); }
             if (type == TokenType.IDENTIFIER) { return new Identifier(NextToken().Value); }

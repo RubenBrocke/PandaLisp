@@ -10,20 +10,38 @@ namespace PandaLisp
     public class Context
     {
         public Dictionary<string,BaseType> AstList;
-        public Dictionary<string,object> Idents;
+        public Dictionary<string,Primary> Idents;
 
         public Context()
         {
             AstList = new Dictionary<string,BaseType>();
-            AstList.Add("+", new Function("+", null) { IsNative = true });
-            AstList.Add("-", new Function("-", null) { IsNative = true });
+            AddNativeFun("+");
+            AddNativeFun("-");
+            AddNativeFun("*");
+            AddNativeFun("/");
+            AddNativeFun("if");
 
-            Idents = new Dictionary<string,object>();
+            Idents = new Dictionary<string,Primary>();
         }
 
         public Context(Context context) : this()
         {
             AstList = context.AstList;
+        }
+
+        private void AddNativeFun(string ident)
+        {
+            AstList.Add(ident, new Function(ident, null) { IsNative = true });
+        }
+
+        public string PrintContext()
+        {
+            string result = "";
+            result += "AstList: \n";
+            result += string.Join('\n', AstList.Select(n => n.Key));
+            result += "\nidents: \n";
+            result += string.Join('\n', Idents.Select(n => n.Key));
+            return result;
         }
     }
 }

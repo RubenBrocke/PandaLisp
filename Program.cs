@@ -18,14 +18,8 @@ namespace PandaLisp
             string ast = astPrinter.VisitRoot(parser.Root);
             System.Console.WriteLine(ast);
             Interpreter interpreter = new Interpreter(); 
-            List<object> result = (List<object>)interpreter.VisitRoot(parser.Root);
-            foreach (object o1 in result)
-            {
-                foreach (object o2 in (List<object>)o1)
-                {
-                    System.Console.WriteLine(o2);
-                }
-            }
+            Primary result = interpreter.VisitRoot(parser.Root);
+            System.Console.WriteLine("Result: " + result);
             Console.ReadLine();
         }
     }

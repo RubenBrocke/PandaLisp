@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace PandaLisp
 {
-    public class Interpreter : IVisitor<object>
+    public class Interpreter : IVisitor<Primary>
     {
         public Context currentContext;
         public Interpreter()
@@ -15,23 +15,24 @@ namespace PandaLisp
             currentContext = new Context();
         }
 
-        public object VisitRoot(Root basetype)
+        public Primary VisitRoot(Root basetype)
         {
-            List<object> results = new List<object>();
-            foreach(Lisp l in basetype.Lisps)
+            List<Primary> results = new List<Primary>();
+            foreach(Primary p in basetype.Lisps)
             {
-                results.Add(l.Accept(this));
+                results.Add(p.Accept(this));
             }
-            return results;
+            return new Lisp(null, results);
         }
 
-        public object VisitLisp(Lisp basetype)
+        public Primary VisitLisp(Lisp basetype)
         {
-            List<object> results = new List<object>();
-
+            List<Primary> results = new List<Primary>();
             if (basetype.Function != null)
+            {
                 results.Add(basetype.Function.Accept(this));
-            else if (basetype.Primaries[0] is Identifier i && currentContext.AstList.First(n => n.Key.Equals(i.Accept(this))).Value is Function f)
+            }
+            else if (basetype.Primaries[0] is Identifier i && currentContext.AstList.First(n => n.Key.Equals(i.Value)).Value is Function f)
             {
                 results.Add(f.AcceptCall(this, new Lisp(null, basetype.Primaries.GetRange(1, basetype.Primaries.Count() - 1))));
             }
@@ -42,15 +43,17 @@ namespace PandaLisp
                     results.Add(p.Accept(this));
                 }
             }
-            return results;
+            return new Lisp(null, results);
         }
 
-        public object VisitCall(Function function, Lisp args)
+        public Primary VisitCall(Function function, Lisp args)
         {
             // Start pattern matching
-            // Get = function from Context
             foreach(Pattern p in function.Patterns)
             {
+                Context previousContext = currentContext;
+                currentContext = new Context(previousContext);
+
                 if (p.Matcher.Primaries.Count() != args.Primaries.Count())
                     continue;
 
@@ -59,98 +62,83 @@ namespace PandaLisp
                 bool isMatch = true;
                 for (int i = 0; i < args.Primaries.Count(); i++)
                 {
-                    Context previousContext = currentContext;
-                    currentContext = new Context(previousContext);
 
                     // Check for identifier (to set) and make unique too
                     if (p.Matcher.Primaries[i] is Identifier ident)
                     {
-                        currentContext.Idents.Add(ident.Value, args.Primaries[i].Accept(this));
+                        System.Console.WriteLine("Added " + (string)ident.Value + " to context");
+                        currentContext.Idents.Add((string)ident.Value, args.Primaries[i].Accept(this));
                     }
                     else
                     {
                         // Check for equality 
-                        if (p.Matcher.Primaries[i].Accept(this) != args.Primaries[i].Accept(this))
+                        if (!p.Matcher.Primaries[i].Accept(this).Value.Equals(args.Primaries[i].Accept(this).Value))
                         {
                             System.Console.WriteLine("test1 " + p.Matcher.Primaries[i].Accept(this));
                             System.Console.WriteLine("test2 " + args.Primaries[i].Accept(this));
                             isMatch = false;
                         }
                     }
-                    
-                    currentContext = previousContext;
                 }
                 if (!isMatch) continue;
 
                 // Run Result
                 System.Console.WriteLine("Running result");
-                System.Console.WriteLine(p.Result.Primaries[0]);
-                System.Console.WriteLine(p.Result.Primaries[1]);
-                System.Console.WriteLine(p.Result.Primaries[2]);
-                return p.Result.Accept(this);
+                Primary result = p.Result.Accept(this);
+                currentContext = previousContext;
+                return new Lisp(null, new List<Primary>() { result });
             }
             throw new CompilerException("Could not match function with args " + args.Primaries);
         }
 
-        public object VisitFunction(Function basetype)
+        public Primary VisitFunction(Function basetype)
         {
             currentContext.AstList.Add(basetype.Identifier, basetype);
             List<object> results = new List<object>();
 
-            foreach (Pattern p in basetype.Patterns)
-            {
-                results.Add(p.Accept(this));
-            }
-
-            return results;
+            return new Lisp(null, null);
         }
 
-        public object VisitMatcher(Matcher basetype)
+        public Primary VisitMatcher(Matcher basetype)
         {
             return null;
         }
 
-        public object VisitPattern(Pattern basetype)
+        public Primary VisitPattern(Pattern basetype)
         {
             return null;
         }
 
-        public object VisitPrimary(Primary basetype)
+        public Primary VisitPrimary(Primary basetype)
         {
             return null;
         }
-        public object VisitNumber(Number basetype)
+        public Primary VisitNumber(Number basetype)
         {
-            return Convert.ToInt32(basetype.Value);
+            return basetype;
         }
-        public object VisitString(String basetype)
+        public Primary VisitString(String basetype)
         {
-            return basetype.Value;
+            return basetype;
         }
-        public object VisitIdentifier(Identifier basetype)
+        public Primary VisitIdentifier(Identifier basetype)
         {
-            System.Console.WriteLine("Ident: " + basetype.Value);
-            System.Console.WriteLine("Context");
             foreach (object o in currentContext.Idents.Keys)
             {
                 System.Console.WriteLine(o);
             }
-            if (currentContext.Idents.Any(n => n.Key == basetype.Value))
+            if (currentContext.Idents.Any(n => n.Key == (string)basetype.Value))
             {
-                return currentContext.Idents.First(n => n.Key == basetype.Value).Value;
+                return currentContext.Idents.First(n => n.Key == (string)basetype.Value).Value;
             }
-            return basetype.Value;
+            return basetype;
         }
-        public object VisitBoolean(Boolean basetype)
+        public Primary VisitBoolean(Boolean basetype)
         {
-            if (basetype.Value == "true")
-                return true;
-            if (basetype.Value == "false")
-                return false;
-            throw new CompilerException("Boolean not true of false");
+            return basetype;
         }
 
-        public object VisitNativeCall(Function function, Lisp args)
+        public Primary VisitNativeCall(Function function, Lisp args)
         {
             List<Primary> values = args.Primaries;
             switch (function.Identifier)
@@ -160,41 +148,150 @@ namespace PandaLisp
                     {
                         if (values[i] != values[i + 1])
                         {
-                            return false;
+                            return new Boolean(false);
                         }
                     }
-                    return true;
+                    return new Boolean(true);
                 case "+":
-                    int result = (int)values[0].Accept(this);
-                    for (int i = 1; i < values.Count(); i++)
-                    {
-                        result += (int)values[i].Accept(this);
-                    }
-                    return result;
+                    return NativePlus(values.ToArray());
                 case "-":
-                    result = (int)values[0].Accept(this);
-                    for (int i = 1; i < values.Count(); i++)
-                    {
-                        var test = (List<object>)values[i].Accept(this);
-                        result -= (int)test.Aggregate((x, y) => (int)x - (int)y);
-                    }
-                    return result;
+                    return NativeMinus(values.ToArray());
                 case "/":
-                    result = (int)values[0].Accept(this);
-                    for (int i = 1; i < values.Count(); i++)
-                    {
-                        result /= (int)values[i].Accept(this);
-                    }
-                    return result;
+                    return NativeDivision(values.ToArray());
                 case "*":
-                    result = (int)values[0].Accept(this);
-                    for (int i = 1; i < values.Count(); i++)
-                    {
-                        result *= (int)values[i].Accept(this);
-                    }
-                    return result; 
+                    return NativeMultiply(values.ToArray());
+                case "if":
+                    return NativeIf(values.ToArray());
             }
             throw new CompilerException("Native function " + function.Identifier + " is not known");
+        }
+
+        private Number NativePlus(params Primary[] args)
+        {
+            int? result = null;
+            for (int i = 0; i < args.Length; i++)
+            {
+                // Check for basic int
+                var value = args[i].Accept(this);
+                if (value as Number != null)
+                {
+                    // Check for first value
+                    if (result == null)
+                        result = (int)value.Value;
+                    else
+                        result += (int)value.Value;
+                }
+                // Else recurse with the object list
+                else
+                {
+                    // Check for first value
+                    if (result == null)
+                        result = (int)NativePlus(args[i]).Value;
+                    else
+                        result += (int)NativePlus(args[i]).Value;
+                }
+            }
+            return new Number((int)result);
+        }
+
+        private Number NativeMinus(params Primary[] args)
+        {
+            int? result = null;
+            for (int i = 0; i < args.Length; i++)
+            {
+                // Check for basic int
+                var value = args[i].Accept(this);
+                if (value as Number != null)
+                {
+                    // Check for first value
+                    if (result == null)
+                        result = (int)value.Value;
+                    else
+                        result -= (int)value.Value;
+                }
+                // Else recurse with the object list
+                else
+                {
+                    // Check for first value
+                    if (result == null)
+                        result = (int)NativeMinus(args[i]).Value;
+                    else
+                        result -= (int)NativeMinus(args[i]).Value;
+                }
+            }
+            return new Number((int)result);
+        }
+
+        private Number NativeMultiply(params Primary[] args)
+        {
+            int? result = null;
+            for (int i = 0; i < args.Length; i++)
+            {
+                // Check for basic int
+                var value = args[i].Accept(this);
+                if (value as Number != null)
+                {
+                    // Check for first value
+                    if (result == null)
+                        result = (int)value.Value;
+                    else
+                        result *= (int)value.Value;
+                }
+                // Else recurse with the object list
+                else
+                {
+                    // Check for first value
+                    if (result == null)
+                        result = (int)NativeMultiply(args[i]).Value;
+                    else
+                        result *= (int)NativeMultiply(args[i]).Value;
+                }
+            }
+            return new Number((int)result);
+        }
+
+        private Number NativeDivision(params Primary[] args)
+        {
+            int? result = null;
+            for (int i = 0; i < args.Length; i++)
+            {
+                // Check for basic int
+                var value = args[i].Accept(this);
+                if (value as Number != null)
+                {
+                    // Check for first value
+                    if (result == null)
+                        result = (int)value.Value;
+                    else
+                        result /= (int)value.Value;
+                }
+                // Else recurse with the object list
+                else
+                {
+                    // Check for first value
+                    if (result == null)
+                        result = (int)NativeDivision(args[i]).Value;
+                    else
+                        result /= (int)NativeDivision(args[i]).Value;
+                }
+            }
+            return new Number((int)result);
+        }
+    
+        private Primary NativeIf(params Primary[] args)
+        {
+            if (args.Length != 3 && args.Length != 2)
+                throw new CompilerException("If only has 2 or 3 options");
+
+            if ((bool)args[0].Accept(this).Value)
+            {
+                return args[1].Accept(this);
+            }
+            else if (args.Length == 3)
+            {
+                return args[2].Accept(this);
+            }
+            throw new CompilerException("Could not execute if");
         }
     }
 }

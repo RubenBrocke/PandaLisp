@@ -10,6 +10,8 @@ namespace PandaLisp
         public static Dictionary<string, TokenType> Keywords = new Dictionary<string, TokenType>()
         {
             { "fun",    TokenType.FUN },
+            { "true",   TokenType.TRUE},
+            { "false",  TokenType.FALSE}
         };
     }
 }

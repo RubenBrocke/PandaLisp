@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace PandaLisp
 {
@@ -49,6 +50,15 @@ namespace PandaLisp
         public override T Accept<T>(IVisitor<T> visitor)
         {
             return visitor.VisitLisp(this);
+        }
+
+        public override string ToString(){
+            string result = "";
+            result += Function == null ? "" : Function.Identifier;
+            result += '\n';
+            result += Primaries == null ? "" : string.Join(" ", Primaries.Select(n => n.ToString()));
+
+            return result;
         }
     }
 
@@ -109,7 +119,7 @@ namespace PandaLisp
 
     abstract public class Primary : BaseType
     {
-        public string Value;
+        public object Value;
         public override T Accept<T>(IVisitor<T> visitor)
         {
             return visitor.VisitPrimary(this);
@@ -118,7 +128,7 @@ namespace PandaLisp
 
     public class Number : Primary
     {
-        public Number(string value)
+        public Number(int value)
         {
             Value = value;
         }
@@ -126,6 +136,11 @@ namespace PandaLisp
         {
             return visitor.VisitNumber(this);
         } 
+
+        public override string ToString()
+        {
+            return Value.ToString();
+        }
     }
 
     public class String : Primary
@@ -150,11 +165,16 @@ namespace PandaLisp
         {
             return visitor.VisitIdentifier(this);
         } 
+
+        public override string ToString()
+        {
+            return Value == null ? "" : (string)Value;
+        }
     }
 
     public class Boolean : Primary
     {
-        public Boolean(string value)
+        public Boolean(bool value)
         {
             Value = value;
         }
