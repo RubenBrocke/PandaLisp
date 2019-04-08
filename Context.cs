@@ -20,6 +20,8 @@ namespace PandaLisp
             AddNativeFun("*");
             AddNativeFun("/");
             AddNativeFun("if");
+            AddNativeFun("=");
+            AddNativeFun("concat");
 
             Idents = new Dictionary<string,Primary>();
         }
@@ -40,7 +42,7 @@ namespace PandaLisp
             result += "AstList: \n";
             result += string.Join('\n', AstList.Select(n => n.Key));
             result += "\nidents: \n";
-            result += string.Join('\n', Idents.Select(n => n.Key));
+            result += string.Join('\n', Idents.Select(n => n.Key + ": " + n.Value));
             return result;
         }
     }

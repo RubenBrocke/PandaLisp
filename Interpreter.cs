@@ -27,68 +27,88 @@ namespace PandaLisp
 
         public Primary VisitLisp(Lisp basetype)
         {
-            List<Primary> results = new List<Primary>();
+            Primary result;
+            if (basetype.Primaries?.Count ==0)
+                return new Null();
+
             if (basetype.Function != null)
             {
-                results.Add(basetype.Function.Accept(this));
+                return basetype.Function.Accept(this);
             }
-            else if (basetype.Primaries[0] is Identifier i && currentContext.AstList.First(n => n.Key.Equals(i.Value)).Value is Function f)
+            else if (basetype.Primaries[0] is Identifier i && currentContext.AstList.FirstOrDefault(n => n.Key.Equals(i.Value)).Value is Function f)
             {
-                results.Add(f.AcceptCall(this, new Lisp(null, basetype.Primaries.GetRange(1, basetype.Primaries.Count() - 1))));
+                // Interprete primaries before call with args (unless if)
+                if (f.Identifier != "if")
+                {
+                    List<Primary> args = new List<Primary>();
+                    List<Primary> oldargs = basetype.Primaries.GetRange(1, basetype.Primaries.Count() - 1);
+                    foreach(Primary p in oldargs)
+                    {
+                        args.Add(p.Accept(this));
+                    }
+                    return f.AcceptCall(this, args.ToArray());
+                }
+                return f.AcceptCall(this, basetype.Primaries.GetRange(1, basetype.Primaries.Count() - 1).ToArray());
             }
             else
             {
+                // Check for lonely lisp
+                if (basetype.Primaries.Count == 1) return basetype.Primaries[0].Accept(this);
+                
+                List<Primary> ps = new List<Primary>();
                 foreach (Primary p in basetype.Primaries)
                 {
-                    results.Add(p.Accept(this));
+                    ps.Add(p.Accept(this));
                 }
+                return new Lisp(null, ps);
             }
-            return new Lisp(null, results);
         }
 
-        public Primary VisitCall(Function function, Lisp args)
+        public Primary VisitCall(Function function, params Primary[] args)
         {
             // Start pattern matching
             foreach(Pattern p in function.Patterns)
             {
                 Context previousContext = currentContext;
                 currentContext = new Context(previousContext);
+                //System.Console.WriteLine("Changed context for function " + function.Identifier + " with arg count " + args.Length);
 
-                if (p.Matcher.Primaries.Count() != args.Primaries.Count())
+                if (p.Matcher.Primaries.Count() != args.Length)
                     continue;
 
                 // Match with Matcher (first gets to start first)
                 // When an identifier is found it gets the args value
                 bool isMatch = true;
-                for (int i = 0; i < args.Primaries.Count(); i++)
+                for (int i = 0; i < args.Length; i++)
                 {
 
                     // Check for identifier (to set) and make unique too
                     if (p.Matcher.Primaries[i] is Identifier ident)
                     {
-                        System.Console.WriteLine("Added " + (string)ident.Value + " to context");
-                        currentContext.Idents.Add((string)ident.Value, args.Primaries[i].Accept(this));
+                        //System.Console.WriteLine("Added " + (string)ident.Value + " to context with value " + args[i].Accept(this));
+                        currentContext.Idents.Add((string)ident.Value, args[i].Accept(this));
                     }
                     else
                     {
                         // Check for equality 
-                        if (!p.Matcher.Primaries[i].Accept(this).Value.Equals(args.Primaries[i].Accept(this).Value))
+                        if (!p.Matcher.Primaries[i].Accept(this).Value.Equals(args[i].Accept(this).Value))
                         {
-                            System.Console.WriteLine("test1 " + p.Matcher.Primaries[i].Accept(this));
-                            System.Console.WriteLine("test2 " + args.Primaries[i].Accept(this));
                             isMatch = false;
                         }
                     }
                 }
-                if (!isMatch) continue;
+                if (!isMatch)
+                {
+                    currentContext = previousContext;
+                    continue;
+                }
 
                 // Run Result
-                System.Console.WriteLine("Running result");
                 Primary result = p.Result.Accept(this);
                 currentContext = previousContext;
-                return new Lisp(null, new List<Primary>() { result });
+                return result;
             }
-            throw new CompilerException("Could not match function with args " + args.Primaries);
+            throw new CompilerException("Could not match function with args " + args);
         }
 
         public Primary VisitFunction(Function basetype)
@@ -96,7 +116,7 @@ namespace PandaLisp
             currentContext.AstList.Add(basetype.Identifier, basetype);
             List<object> results = new List<object>();
 
-            return new Lisp(null, null);
+            return new Null();
         }
 
         public Primary VisitMatcher(Matcher basetype)
@@ -123,10 +143,6 @@ namespace PandaLisp
         }
         public Primary VisitIdentifier(Identifier basetype)
         {
-            foreach (object o in currentContext.Idents.Keys)
-            {
-                System.Console.WriteLine(o);
-            }
             if (currentContext.Idents.Any(n => n.Key == (string)basetype.Value))
             {
                 return currentContext.Idents.First(n => n.Key == (string)basetype.Value).Value;
@@ -138,32 +154,38 @@ namespace PandaLisp
             return basetype;
         }
 
-        public Primary VisitNativeCall(Function function, Lisp args)
+        public Primary VisitNativeCall(Function function, params Primary[] args)
         {
-            List<Primary> values = args.Primaries;
             switch (function.Identifier)
             {
                 case "=":
-                    for (int i = 0; i < values.Count() - 1; i++)
-                    {
-                        if (values[i] != values[i + 1])
-                        {
-                            return new Boolean(false);
-                        }
-                    }
-                    return new Boolean(true);
+                    return NativeEquals(args);
                 case "+":
-                    return NativePlus(values.ToArray());
+                    return NativePlus(args);
                 case "-":
-                    return NativeMinus(values.ToArray());
+                    return NativeMinus(args);
                 case "/":
-                    return NativeDivision(values.ToArray());
+                    return NativeDivision(args);
                 case "*":
-                    return NativeMultiply(values.ToArray());
+                    return NativeMultiply(args);
                 case "if":
-                    return NativeIf(values.ToArray());
+                    return NativeIf(args);
+                case "concat":
+                    return NativeConcat(args);
             }
             throw new CompilerException("Native function " + function.Identifier + " is not known");
+        }
+
+        private Boolean NativeEquals(params Primary[] args)
+        {
+            for (int i = 0; i < args.Count() - 1; i++)
+            {
+                if (!args[i].Accept(this).Value.Equals(args[i + 1].Accept(this).Value))
+                {
+                    return new Boolean(false);
+                }
+            }
+            return new Boolean(true);
         }
 
         private Number NativePlus(params Primary[] args)
@@ -283,7 +305,7 @@ namespace PandaLisp
             if (args.Length != 3 && args.Length != 2)
                 throw new CompilerException("If only has 2 or 3 options");
 
-            if ((bool)args[0].Accept(this).Value)
+            if ((bool)NativeEquals(new Primary[] { new Boolean(true), args[0]}).Value)
             {
                 return args[1].Accept(this);
             }
@@ -291,7 +313,27 @@ namespace PandaLisp
             {
                 return args[2].Accept(this);
             }
-            throw new CompilerException("Could not execute if");
+            return new Null();
+        }
+
+        private Primary NativeConcat(params Primary[] args)
+        {
+            List<Primary> concatList = new List<Primary>();
+            foreach(Primary p in args)
+            {
+                if (p is Lisp l)
+                {
+                    foreach (Primary p2 in l.Primaries)
+                    {
+                        concatList.Add(p2);
+                    }
+                }
+                else 
+                {
+                    concatList.Add(p);
+                }
+            }
+            return new Lisp(null, concatList);
         }
     }
 }

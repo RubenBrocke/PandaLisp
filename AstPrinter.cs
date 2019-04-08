@@ -34,14 +34,14 @@ namespace PandaLisp
             return Parenthesize("Function " + basetype.Identifier, basetype.Patterns.ToArray());
         }
 
-        public string VisitCall(Function function, Lisp lisp)
+        public string VisitCall(Function function, params Primary[] args)
         {
-            return Parenthesize("Call " + function.Identifier, lisp);
+            return Parenthesize("Call " + function.Identifier, args);
         }
 
-        public string VisitNativeCall(Function function, Lisp lisp)
+        public string VisitNativeCall(Function function, params Primary[] args)
         {
-            return Parenthesize("Native Call " + function.Identifier, lisp);
+            return Parenthesize("Native Call " + function.Identifier, args);
         }
 
         public string VisitMatcher(Matcher basetype)

@@ -20,6 +20,7 @@ namespace PandaLisp
             Interpreter interpreter = new Interpreter(); 
             Primary result = interpreter.VisitRoot(parser.Root);
             System.Console.WriteLine("Result: " + result);
+            System.Console.WriteLine("EXECUTION ENDED");
             Console.ReadLine();
         }
     }

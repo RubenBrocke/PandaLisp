@@ -12,8 +12,8 @@ namespace PandaLisp
         T VisitMatcher(Matcher basetype);
         T VisitPrimary(Primary basetype);
         T VisitPattern(Pattern basetype);
-        T VisitCall(Function function, Lisp basetype);
-        T VisitNativeCall(Function function, Lisp basetype);
+        T VisitCall(Function function, params Primary[] args);
+        T VisitNativeCall(Function function, params Primary[] args);
         T VisitNumber(Number basetype);
         T VisitString(String basetype);
         T VisitIdentifier(Identifier basetype);
@@ -53,12 +53,15 @@ namespace PandaLisp
         }
 
         public override string ToString(){
-            string result = "";
-            result += Function == null ? "" : Function.Identifier;
-            result += '\n';
-            result += Primaries == null ? "" : string.Join(" ", Primaries.Select(n => n.ToString()));
-
-            return result;
+            if (Function != null)
+            {
+                return "(" + Function.Identifier + ")";
+            }
+            else if (Primaries?.Count > 0)
+            {
+                return "(" + string.Join(" ", Primaries.Select(n => n.ToString())) + ")";
+            }
+            return "()";
         }
     }
 
@@ -78,7 +81,7 @@ namespace PandaLisp
             return visitor.VisitFunction(this);
         }
 
-        public T AcceptCall<T>(IVisitor<T> visitor, Lisp args)
+        public T AcceptCall<T>(IVisitor<T> visitor, params Primary[] args)
         {
             if (IsNative)
                 return visitor.VisitNativeCall(this, args);
@@ -153,6 +156,11 @@ namespace PandaLisp
         {
             return visitor.VisitString(this);
         } 
+
+        public override string ToString()
+        {
+            return (string)Value;
+        }
     }
 
     public class Identifier : Primary
@@ -181,6 +189,19 @@ namespace PandaLisp
         public override T Accept<T>(IVisitor<T> visitor)
         {
             return visitor.VisitBoolean(this);
+        }
+
+        public override string ToString()
+        {
+            return (bool)Value == true ? "true" : "false";
+        }
+    }
+
+    public class Null : Primary
+    {
+        public override string ToString()
+        {
+            return "";
         }
     }
 }

@@ -52,6 +52,7 @@ namespace PandaLisp
                     case '\t': break;
                     case '\n': _line++; break;
                     case '"': String(); break;
+                    case '#': TakeWhile(n => n != '\n'); _line++; break;
                     default:
                         //Check for number
                         if (char.IsDigit(c))
